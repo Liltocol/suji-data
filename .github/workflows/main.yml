@@ -45,11 +45,14 @@ jobs:
             if [ -n "$KEY" ]; then
               echo "Processing key: $KEY with description: $DESCRIPTION"
               
+              # jqを使って適切にJSONを構築
+              JSON_PAYLOAD=$(jq -n --arg key "$KEY" --arg description "$DESCRIPTION" '{key: ($key | tonumber), description: $description}')
+              
               # HandleNumber APIを呼び出し（サービスアカウント認証）
               curl -X POST "${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}" \
                 -H "Content-Type: application/json" \
                 -H "Authorization: Bearer ${{ secrets.FIREBASE_FUNCTIONS_SERVICE_ACCOUNT }}" \
-                -d "{\"key\": $KEY, \"description\": \"$DESCRIPTION\"}" \
+                -d "$JSON_PAYLOAD" \
                 --fail-with-body
               
               echo "Successfully processed key: $KEY"
