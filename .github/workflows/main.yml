@@ -1,41 +1,67 @@
-name: Main Workflow
+name: Update Firestore on JSON changes
 
 on:
   push:
+    paths:
+      - 'suuji/**/*.json'
     branches:
       - main
-    paths:
-      - 'suuji/**'
+  workflow_dispatch:
 
 jobs:
-  build:
+  update-firestore:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
       with:
-        node-version: '18'
-        
-    - name: Install dependencies
+        fetch-depth: 0
+    
+    - name: Get changed JSON files
+      id: changed-files
       run: |
-        echo "Installing dependencies..."
-        # ここに依存関係のインストールコマンドを追加
+        if [ "${{ github.event_name }}" = "push" ]; then
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.json$' | grep '^suuji/')
+        else
+          CHANGED_FILES=$(find suuji -name "*.json" -type f)
+        fi
         
-    - name: Run tests
+        echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+        echo "Changed JSON files:"
+        echo "$CHANGED_FILES"
+    
+    - name: Process JSON files and update Firestore
+      if: steps.changed-files.outputs.files != ''
       run: |
-        echo "Running tests..."
-        # ここにテストコマンドを追加
-        
-    - name: Build
+        echo "${{ steps.changed-files.outputs.files }}" | while read -r file; do
+          if [ -n "$file" ] && [ -f "$file" ]; then
+            echo "Processing file: $file"
+            
+            KEY=$(jq -r '.key // empty' "$file")
+            DESCRIPTION=$(jq -r '.description // ""' "$file")
+            
+            if [ -n "$KEY" ]; then
+              echo "Processing key: $KEY with description: $DESCRIPTION"
+              
+              # HandleNumber APIを呼び出し（サービスアカウント認証）
+              curl -X POST "${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${{ secrets.FIREBASE_FUNCTIONS_SERVICE_ACCOUNT }}" \
+                -d "{\"key\": $KEY, \"description\": \"$DESCRIPTION\"}" \
+                --fail-with-body
+              
+              echo "Successfully processed key: $KEY"
+            else
+              echo "Warning: No key found in file $file"
+            fi
+          fi
+        done
+    
+    - name: Summary
       run: |
-        echo "Building project..."
-        # ここにビルドコマンドを追加
-        
-    - name: Deploy
-      run: |
-        echo "Deploying..."
-        # ここにデプロイコマンドを追加
+        echo "## Summary" >> $GITHUB_STEP_SUMMARY
+        echo "Processed JSON files:" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.changed-files.outputs.files }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All JSON files have been processed and Firestore has been updated." >> $GITHUB_STEP_SUMMARY
