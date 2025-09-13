@@ -41,8 +41,8 @@ jobs:
             # ファイル名からKEYを取得（例: suuji/0-999/0-99/2.md -> 2）
             KEY=$(basename "$file" .md)
             
-            # Markdownファイルから内容を読み取り（# 概要 の行をスキップ）
-            DESCRIPTION=$(tail -n +2 "$file" | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            # Markdownファイルから内容を読み取り（# 概要 も含める）
+            DESCRIPTION=$(cat "$file" | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             
             if [ -n "$KEY" ]; then
               echo "Processing key: $KEY with description: $DESCRIPTION"
