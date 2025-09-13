@@ -3,7 +3,7 @@ name: Update Firestore on JSON changes
 on:
   push:
     paths:
-      - 'suuji/**/*.json'
+      - 'suuji/**/*.md'
     branches:
       - main
   workflow_dispatch:
@@ -18,35 +18,34 @@ jobs:
       with:
         fetch-depth: 0
     
-    - name: Get changed JSON files
+    - name: Get changed Markdown files
       id: changed-files
       run: |
         if [ "${{ github.event_name }}" = "push" ]; then
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.json$' | grep '^suuji/')
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.md$' | grep '^suuji/')
         else
-          CHANGED_FILES=$(find suuji -name "*.json" -type f)
+          CHANGED_FILES=$(find suuji -name "*.md" -type f)
         fi
         
         echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
-        echo "Changed JSON files:"
+        echo "Changed Markdown files:"
         echo "$CHANGED_FILES"
     
-    - name: Process JSON files and update Firestore
+    - name: Process Markdown files and update Firestore
       if: steps.changed-files.outputs.files != ''
       run: |
         echo "${{ steps.changed-files.outputs.files }}" | while read -r file; do
           if [ -n "$file" ] && [ -f "$file" ]; then
             echo "Processing file: $file"
             
-            # ファイル名からKEYを取得（例: suuji/0-999/0-99/2.json -> 2）
-            KEY=$(basename "$file" .json)
-            DESCRIPTION=$(jq -r '.description // ""' "$file")
+            # ファイル名からKEYを取得（例: suuji/0-999/0-99/2.md -> 2）
+            KEY=$(basename "$file" .md)
             
             if [ -n "$KEY" ]; then
-              echo "Processing key: $KEY with description: $DESCRIPTION"
+              echo "Processing key: $KEY"
               
-              # jqを使って適切にJSONを構築
-              JSON_PAYLOAD=$(jq -n --arg key "$KEY" --arg description "$DESCRIPTION" '{key: ($key | tonumber), description: $description}')
+              # jqを使って適切にJSONを構築（descriptionキーは削除）
+              JSON_PAYLOAD=$(jq -n --arg key "$KEY" '{key: ($key | tonumber)}')
               
               # HandleNumber APIを呼び出し
               curl -X POST "${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}" \
@@ -64,7 +63,7 @@ jobs:
     - name: Summary
       run: |
         echo "## Summary" >> $GITHUB_STEP_SUMMARY
-        echo "Processed JSON files:" >> $GITHUB_STEP_SUMMARY
+        echo "Processed Markdown files:" >> $GITHUB_STEP_SUMMARY
         echo "${{ steps.changed-files.outputs.files }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "All JSON files have been processed and Firestore has been updated." >> $GITHUB_STEP_SUMMARY
+        echo "All Markdown files have been processed and Firestore has been updated." >> $GITHUB_STEP_SUMMARY
