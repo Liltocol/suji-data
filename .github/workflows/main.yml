@@ -1,0 +1,41 @@
+name: Main Workflow
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'suuji/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: |
+        echo "Installing dependencies..."
+        # ここに依存関係のインストールコマンドを追加
+        
+    - name: Run tests
+      run: |
+        echo "Running tests..."
+        # ここにテストコマンドを追加
+        
+    - name: Build
+      run: |
+        echo "Building project..."
+        # ここにビルドコマンドを追加
+        
+    - name: Deploy
+      run: |
+        echo "Deploying..."
+        # ここにデプロイコマンドを追加
