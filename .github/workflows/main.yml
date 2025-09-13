@@ -42,21 +42,28 @@ jobs:
             KEY=$(basename "$file" .md)
             
             # Markdownファイルから内容を読み取り（# 概要 も含める）
-            DESCRIPTION=$(cat "$file" | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            # 改行を\\nに変換してFirestoreで正しく表示されるようにする
+            DESCRIPTION=$(cat "$file" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed ':a;N;$!ba;s/\n/\\n/g')
             
             if [ -n "$KEY" ]; then
-              echo "Processing key: $KEY with description: $DESCRIPTION"
+              echo "🔍 Processing key: $KEY"
+              echo "📄 Description length: ${#DESCRIPTION} characters"
+              echo "📝 Description preview: ${DESCRIPTION:0:100}..."
               
               # jqを使って適切にJSONを構築
               JSON_PAYLOAD=$(jq -n --arg key "$KEY" --arg description "$DESCRIPTION" '{key: ($key | tonumber), description: $description}')
+              
+              echo "📤 Sending JSON payload to API..."
+              echo "🔗 API URL: ${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}"
               
               # HandleNumber APIを呼び出し
               curl -X POST "${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}" \
                 -H "Content-Type: application/json" \
                 -d "$JSON_PAYLOAD" \
-                --fail-with-body
+                --fail-with-body \
+                --silent --show-error
               
-              echo "Successfully processed key: $KEY"
+              echo "✅ Successfully processed key: $KEY"
             else
               echo "Warning: No key found in file $file"
             fi
@@ -65,8 +72,16 @@ jobs:
     
     - name: Summary
       run: |
-        echo "## Summary" >> $GITHUB_STEP_SUMMARY
-        echo "Processed Markdown files:" >> $GITHUB_STEP_SUMMARY
-        echo "${{ steps.changed-files.outputs.files }}" >> $GITHUB_STEP_SUMMARY
+        echo "## 📊 Processing Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "All Markdown files have been processed and Firestore has been updated." >> $GITHUB_STEP_SUMMARY
+        echo "### 📁 Processed Markdown files:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.changed-files.outputs.files }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ✅ Results" >> $GITHUB_STEP_SUMMARY
+        echo "- All Markdown files have been processed successfully" >> $GITHUB_STEP_SUMMARY
+        echo "- Firestore has been updated with the latest content" >> $GITHUB_STEP_SUMMARY
+        echo "- Newline characters have been properly escaped for Firestore" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 **Workflow completed successfully!**" >> $GITHUB_STEP_SUMMARY
