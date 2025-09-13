@@ -1,41 +1,93 @@
-name: Main Workflow
+name: Update Firestore on JSON changes
 
 on:
   push:
+    paths:
+      - 'suuji/**/*.json'
     branches:
       - main
-    paths:
-      - 'suuji/**'
+  workflow_dispatch:
 
 jobs:
-  build:
+  update-firestore:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
       with:
-        node-version: '18'
-        
+        fetch-depth: 0  # 全履歴を取得して変更されたファイルを特定するため
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
     - name: Install dependencies
       run: |
-        echo "Installing dependencies..."
-        # ここに依存関係のインストールコマンドを追加
-        
-    - name: Run tests
+        cd backend
+        go mod tidy
+        go mod download
+    
+    - name: Get changed JSON files
+      id: changed-files
       run: |
-        echo "Running tests..."
-        # ここにテストコマンドを追加
+        # 変更されたJSONファイルのリストを取得
+        if [ "${{ github.event_name }}" = "push" ]; then
+          # pushイベントの場合、前のコミットとの差分を取得
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.json$' | grep '^suuji/')
+        else
+          # workflow_dispatchの場合、全てのJSONファイルを対象
+          CHANGED_FILES=$(find suuji -name "*.json" -type f)
+        fi
         
-    - name: Build
-      run: |
-        echo "Building project..."
-        # ここにビルドコマンドを追加
+        # ファイルリストをJSON配列として出力
+        echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
         
-    - name: Deploy
+        # デバッグ用にファイルリストを表示
+        echo "Changed JSON files:"
+        echo "$CHANGED_FILES"
+    
+    - name: Process JSON files and update Firestore
+      if: steps.changed-files.outputs.files != ''
       run: |
-        echo "Deploying..."
-        # ここにデプロイコマンドを追加
+        # 変更されたファイルを処理
+        echo "${{ steps.changed-files.outputs.files }}" | while read -r file; do
+          if [ -n "$file" ] && [ -f "$file" ]; then
+            echo "Processing file: $file"
+            
+            # JSONファイルからkeyとdescriptionを抽出
+            KEY=$(jq -r '.key // empty' "$file")
+            DESCRIPTION=$(jq -r '.description // ""' "$file")
+            
+            if [ -n "$KEY" ]; then
+              echo "Processing key: $KEY with description: $DESCRIPTION"
+              
+              # HandleNumber APIを呼び出し
+              curl -X POST "${{ secrets.HANDLE_NUMBER_API_URL }}" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${{ secrets.HANDLE_NUMBER_API_KEY }}" \
+                -d "{\"key\": $KEY, \"description\": \"$DESCRIPTION\"}" \
+                --fail-with-body
+              
+              echo "Successfully processed key: $KEY"
+            else
+              echo "Warning: No key found in file $file"
+            fi
+          fi
+        done
+    
+    - name: Deploy to Cloud Functions (if needed)
+      if: steps.changed-files.outputs.files != ''
+      run: |
+        echo "If you need to deploy the Go functions to Cloud Functions, add deployment steps here"
+        echo "Example:"
+        echo "  gcloud functions deploy handle-number --runtime go121 --trigger-http --allow-unauthenticated"
+    
+    - name: Summary
+      run: |
+        echo "## Summary" >> $GITHUB_STEP_SUMMARY
+        echo "Processed JSON files:" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.changed-files.outputs.files }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All JSON files have been processed and Firestore has been updated." >> $GITHUB_STEP_SUMMARY
