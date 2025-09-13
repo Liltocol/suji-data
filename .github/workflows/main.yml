@@ -41,11 +41,14 @@ jobs:
             # ファイル名からKEYを取得（例: suuji/0-999/0-99/2.md -> 2）
             KEY=$(basename "$file" .md)
             
+            # Markdownファイルから内容を読み取り（# 概要 の行をスキップ）
+            DESCRIPTION=$(tail -n +2 "$file" | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            
             if [ -n "$KEY" ]; then
-              echo "Processing key: $KEY"
+              echo "Processing key: $KEY with description: $DESCRIPTION"
               
-              # jqを使って適切にJSONを構築（descriptionキーは削除）
-              JSON_PAYLOAD=$(jq -n --arg key "$KEY" '{key: ($key | tonumber)}')
+              # jqを使って適切にJSONを構築
+              JSON_PAYLOAD=$(jq -n --arg key "$KEY" --arg description "$DESCRIPTION" '{key: ($key | tonumber), description: $description}')
               
               # HandleNumber APIを呼び出し
               curl -X POST "${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}" \
