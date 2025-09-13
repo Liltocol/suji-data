@@ -16,57 +16,38 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 全履歴を取得して変更されたファイルを特定するため
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
-    
-    - name: Install dependencies
-      run: |
-        cd backend
-        go mod tidy
-        go mod download
+        fetch-depth: 0
     
     - name: Get changed JSON files
       id: changed-files
       run: |
-        # 変更されたJSONファイルのリストを取得
         if [ "${{ github.event_name }}" = "push" ]; then
-          # pushイベントの場合、前のコミットとの差分を取得
           CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.json$' | grep '^suuji/')
         else
-          # workflow_dispatchの場合、全てのJSONファイルを対象
           CHANGED_FILES=$(find suuji -name "*.json" -type f)
         fi
         
-        # ファイルリストをJSON配列として出力
         echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
-        
-        # デバッグ用にファイルリストを表示
         echo "Changed JSON files:"
         echo "$CHANGED_FILES"
     
     - name: Process JSON files and update Firestore
       if: steps.changed-files.outputs.files != ''
       run: |
-        # 変更されたファイルを処理
         echo "${{ steps.changed-files.outputs.files }}" | while read -r file; do
           if [ -n "$file" ] && [ -f "$file" ]; then
             echo "Processing file: $file"
             
-            # JSONファイルからkeyとdescriptionを抽出
             KEY=$(jq -r '.key // empty' "$file")
             DESCRIPTION=$(jq -r '.description // ""' "$file")
             
             if [ -n "$KEY" ]; then
               echo "Processing key: $KEY with description: $DESCRIPTION"
               
-              # HandleNumber APIを呼び出し
-              curl -X POST "${{ secrets.HANDLE_NUMBER_API_URL }}" \
+              # HandleNumber APIを呼び出し（サービスアカウント認証）
+              curl -X POST "${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}" \
                 -H "Content-Type: application/json" \
-                -H "Authorization: Bearer ${{ secrets.HANDLE_NUMBER_API_KEY }}" \
+                -H "Authorization: Bearer ${{ secrets.FIREBASE_FUNCTIONS_SERVICE_ACCOUNT }}" \
                 -d "{\"key\": $KEY, \"description\": \"$DESCRIPTION\"}" \
                 --fail-with-body
               
@@ -76,13 +57,6 @@ jobs:
             fi
           fi
         done
-    
-    - name: Deploy to Cloud Functions (if needed)
-      if: steps.changed-files.outputs.files != ''
-      run: |
-        echo "If you need to deploy the Go functions to Cloud Functions, add deployment steps here"
-        echo "Example:"
-        echo "  gcloud functions deploy handle-number --runtime go121 --trigger-http --allow-unauthenticated"
     
     - name: Summary
       run: |
