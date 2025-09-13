@@ -48,10 +48,9 @@ jobs:
               # jqを使って適切にJSONを構築
               JSON_PAYLOAD=$(jq -n --arg key "$KEY" --arg description "$DESCRIPTION" '{key: ($key | tonumber), description: $description}')
               
-              # HandleNumber APIを呼び出し（サービスアカウント認証）
+              # HandleNumber APIを呼び出し
               curl -X POST "${{ secrets.SUUJI_HANDLE_NUMBER_API_URL_DEV }}" \
                 -H "Content-Type: application/json" \
-                -H "Authorization: Bearer ${{ secrets.FIREBASE_FUNCTIONS_SERVICE_ACCOUNT }}" \
                 -d "$JSON_PAYLOAD" \
                 --fail-with-body
               
