@@ -38,7 +38,8 @@ jobs:
           if [ -n "$file" ] && [ -f "$file" ]; then
             echo "Processing file: $file"
             
-            KEY=$(jq -r '.key // empty' "$file")
+            # ファイル名からKEYを取得（例: suuji/0-999/0-99/2.json -> 2）
+            KEY=$(basename "$file" .json)
             DESCRIPTION=$(jq -r '.description // ""' "$file")
             
             if [ -n "$KEY" ]; then
