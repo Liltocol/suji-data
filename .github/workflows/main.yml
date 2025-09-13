@@ -42,7 +42,8 @@ jobs:
             KEY=$(basename "$file" .md)
             
             # Markdownファイルから内容を読み取り（# 概要 も含める）
-            DESCRIPTION=$(cat "$file" | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            # 改行を\\nに変換してFirestoreで正しく表示されるようにする
+            DESCRIPTION=$(cat "$file" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed ':a;N;$!ba;s/\n/\\n/g')
             
             if [ -n "$KEY" ]; then
               echo "Processing key: $KEY with description: $DESCRIPTION"
